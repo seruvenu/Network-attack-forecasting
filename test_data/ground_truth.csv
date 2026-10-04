@@ -1,0 +1,6 @@
+file,attack,attack_start_s,expected_risk,what_it_tests
+1_normal_baseline.csv,none,,LOW,must not alert
+2_syn_flood_easy.csv,ddos_syn,300,CRITICAL,alert soon after t=300
+3_slowloris_hard.csv,ddos_slowloris,200,HIGH,looks quiet by volume; needs duration and byte features
+4_multistage_intrusion.csv,recon>lateral>exfil,150,HIGH,"should forecast lateral movement from recon, exfil from lateral"
+5_flash_crowd_benign_hard.csv,none,,LOW,big spike but legitimate: false-positive test
