@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARGUS - Advanced Attack Forecasting</title>
+<style>
+  :root {
+    --bg: #0d1a20; --rail: #0a1419; --panel: #13242c; --line: #23404b;
+    --ink: #d6e4ea; --mute: #7f9aa6; --obs: #5fb3c9; --fc: #f0a24b;
+    --red: #ff6b6b; --green: #6cc788; --warn: #f59e0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; font-size: 14px;
+         background: var(--bg); color: var(--ink); line-height: 1.45; }
+  .mono { font-family: Consolas, "Courier New", monospace; }
+  .hidden { display: none !important; }
+
+  .topbar { height: 50px; display: flex; align-items: center; justify-content: space-between;
+            padding: 0 20px; background: var(--rail); border-bottom: 2px solid var(--line); }
+  .brand { font-weight: 700; font-size: 17px; letter-spacing: 1.2px; }
+  .brand small { font-weight: 400; color: var(--mute); margin-left: 12px; letter-spacing: 0; font-size: 12px; }
+  .right { display: flex; align-items: center; gap: 20px; font-size: 12px; color: var(--mute); }
+  #pill { display: flex; align-items: center; gap: 8px; padding: 4px 14px; border: 1px solid var(--line);
+          border-radius: 4px; color: var(--ink); background: rgba(95, 179, 201, 0.08); }
+  #pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--mute); display: block; }
+
+  .layout { display: grid; grid-template-columns: 260px 1fr; min-height: calc(100vh - 50px); }
+  aside { background: var(--rail); border-right: 1px solid var(--line); padding: 18px; overflow-y: auto; }
+  aside h2 { font-size: 11px; font-weight: 700; color: var(--mute); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .group { margin-bottom: 22px; }
+
+  #drop { display: block; border: 2px dashed #37596a; padding: 20px 14px; text-align: center; cursor: pointer;
+          color: var(--mute); font-size: 13px; border-radius: 4px; transition: all 0.2s; }
+  #drop:hover, #drop.over { border-color: var(--obs); color: var(--ink); background: rgba(95, 179, 201, 0.08); }
+  #drop b { display: block; color: var(--ink); font-weight: 700; margin-bottom: 3px; font-size: 13px; }
+  #fileInput { display: none; }
+  button { font: inherit; width: 100%; text-align: left; cursor: pointer; margin-bottom: 6px; padding: 8px 12px;
+           background: transparent; color: var(--ink); border: 1px solid var(--line); border-radius: 3px; font-size: 13px; }
+  button:hover { background: rgba(95, 179, 201, 0.1); border-color: var(--obs); }
+
+  #log { list-style: none; max-height: 200px; overflow-y: auto; }
+  #log li { padding: 8px 6px; border-bottom: 1px solid #172a33; font-size: 11px; display: flex; gap: 8px; 
+            align-items: center; transition: all 0.2s; border-left: 3px solid transparent; min-height: 44px; }
+  #log li:hover { background: rgba(95, 179, 201, 0.1); border-left-color: var(--obs); }
+  #log li .content { cursor: pointer; display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+  #log .src { word-break: break-word; color: var(--ink); font-size: 12px; font-weight: 500; line-height: 1.2; }
+  #log .t { color: var(--mute); font-size: 10px; }
+  #log .del { cursor: pointer; color: var(--mute); font-size: 16px; transition: color 0.2s; padding: 4px; flex-shrink: 0; }
+  #log .del:hover { color: var(--red); }
+  #logEmpty { font-size: 12px; color: var(--mute); padding: 8px; }
+
+  main { padding: 20px 24px 30px; overflow-y: auto; }
+  .empty { max-width: 500px; padding: 30px; border: 1px dashed #37596a; color: var(--mute); border-radius: 4px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; margin-bottom: 18px; }
+  .panel h3 { font-size: 13px; font-weight: 700; padding: 11px 16px; border-bottom: 1px solid var(--line); display: flex;
+              justify-content: space-between; color: var(--ink); }
+  .panel h3 span { font-weight: 400; color: var(--mute); font-size: 11px; }
+  .pad { padding: 16px; }
+
+  .three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 14px; }
+  .stat .val { font-size: 24px; font-weight: 700; color: var(--ink); margin-bottom: 2px; }
+  .stat .lab { font-size: 11px; color: var(--mute); text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .top { display: grid; grid-template-columns: 280px 1fr; gap: 16px; margin-bottom: 16px; }
+  .gauge { text-align: center; }
+  .gauge svg { width: 100%; max-width: 220px; }
+  .gauge .lvl { font-size: 24px; font-weight: 700; margin-top: -10px; color: var(--fc); }
+  .facts { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 14px; text-align: left; font-size: 12px; }
+  .facts div { color: var(--mute); }
+  .facts b { display: block; color: var(--ink); font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+
+  .alerts { max-height: 240px; overflow-y: auto; }
+  .alert { padding: 12px; border-left: 3px solid; margin-bottom: 8px; border-radius: 2px; font-size: 12px; background: rgba(0,0,0,0.2); }
+  .alert.critical { border-color: var(--red); }
+  .alert.high { border-color: var(--warn); }
+  .alert.medium { border-color: var(--obs); }
+  .alert .title { font-weight: 700; color: var(--ink); margin-bottom: 2px; }
+  .alert .desc { color: var(--mute); font-size: 11px; }
+  .alert .time { color: #597a87; font-size: 10px; margin-top: 4px; }
+
+  #fcSvg { width: 100%; height: auto; display: block; }
+  .draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 1.2s ease-out forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+
+  .kill-chain { display: flex; gap: 8px; margin-top: 8px; overflow-x: auto; padding: 4px 0; }
+  .kc-stage { flex-shrink: 0; background: #1b323c; border: 1px solid #334455; border-radius: 3px; padding: 6px 10px; font-size: 11px;
+              color: var(--mute); min-width: 110px; text-align: center; position: relative; cursor: pointer; transition: all 0.2s; }
+  .kc-stage:hover { background: #254555; border-color: var(--obs); }
+  .kc-stage.active { background: #0d3a4a; border-color: var(--obs); color: var(--obs); font-weight: 600; box-shadow: 0 0 10px rgba(95, 179, 201, 0.3); }
+  .kc-stage.selected { background: #1a5577; border-color: var(--obs); color: #fff; font-weight: 600; }
+  .kc-stage::after { content: '→'; position: absolute; right: -10px; color: var(--mute); }
+  .kc-stage:last-child::after { display: none; }
+
+  .two { display: grid; grid-template-columns: 1fr 1.3fr; gap: 16px; }
+  .feat { display: grid; grid-template-columns: 1fr 40px; gap: 6px 10px; align-items: center; margin-bottom: 10px; font-size: 12px; }
+  .feat .bar { grid-column: 1; height: 4px; background: #1b323c; border-radius: 1px; }
+  .feat .bar i { display: block; height: 100%; background: var(--obs); }
+  .feat .val { grid-row: 1 / span 2; grid-column: 2; text-align: right; color: var(--mute); font-size: 11px; font-weight: 600; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid #1b323c; font-size: 12px; }
+  th { color: var(--mute); font-weight: 700; font-size: 11px; text-transform: uppercase; }
+  tr:last-child td { border-bottom: 0; }
+  td.crit { color: var(--red); font-weight: 600; }
+  td.warn { color: var(--warn); }
+
+  .track { position: relative; height: 140px; margin: 0 60px; }
+  .track .rail { position: absolute; left: 0; right: 0; top: 70px; height: 2px; background: var(--line); }
+  .node { position: absolute; top: 70px; transform: translate(-50%, -50%); border-radius: 50%; border: 2px solid var(--bg); }
+  .node .eta { position: absolute; left: 50%; bottom: 100%; transform: translate(-50%, -4px); white-space: nowrap;
+               font-size: 10px; color: var(--mute); }
+  .node .lab { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); margin-top: 6px; width: 120px;
+               text-align: center; font-size: 11px; line-height: 1.3; }
+  .node.low .lab { margin-top: 38px; }
+  .node .lab small { display: block; color: var(--mute); font-size: 10px; }
+
+  .loading { color: var(--mute); padding: 30px; text-align: center; }
+  @media (max-width: 1100px) {
+    .layout, .top, .two, .three { grid-template-columns: 1fr; }
+    aside { border-right: 0; border-bottom: 1px solid var(--line); }
+    .track { margin: 0 40px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">ARGUS<small>Predictive Attack Forecasting</small></div>
+  <div class="right"><span id="clock" class="mono"></span><span id="pill"><i></i><span id="pillText">Idle</span></span></div>
+</div>
+
+<div class="layout">
+  <aside>
+    <div class="group">
+      <h2>📥 Traffic Input</h2>
+      <label id="drop" for="fileInput"><b>Drop file</b>CSV or PCAP</label>
+      <input type="file" id="fileInput" accept=".csv,.pcap">
+    </div>
+    <div class="group">
+      <h2>🎯 Scenarios</h2>
+      <button onclick="runDemo('normal','Normal traffic')">Normal traffic</button>
+      <button onclick="runDemo('ddos','DDoS: SYN flood')">DDoS attack</button>
+      <button onclick="runDemo('lateral','Lateral movement')">Lateral movement</button>
+    </div>
+    <div class="group">
+      <h2>📋 Session History</h2>
+      <div id="logEmpty">No analyses yet</div>
+      <ul id="log"></ul>
+    </div>
+
+  </aside>
+
+  <main>
+    <div id="empty" class="empty">
+      <strong>Ready to analyze.</strong><br>
+      Drop a network traffic file (CSV/PCAP) or select a sample scenario to start. ARGUS will forecast the next attack stages and identify contributing factors.
+    </div>
+    <div id="loading" class="loading hidden">🔄 Analyzing traffic patterns...</div>
+
+    <div id="results" class="hidden">
+      <!-- Quick stats -->
+      <div class="three">
+        <div class="stat">
+          <div class="val" id="flowVal">-</div>
+          <div class="lab">Flows Analyzed</div>
+        </div>
+        <div class="stat">
+          <div class="val" id="peakVal">-</div>
+          <div class="lab">Peak Risk Level</div>
+        </div>
+        <div class="stat">
+          <div class="val" id="leadVal">-</div>
+          <div class="lab">Forecast Lead Time</div>
+        </div>
+      </div>
+
+      <!-- Risk gauge + forecast chart -->
+      <div class="top">
+        <div class="panel gauge">
+          <h3>Attack Risk</h3>
+          <div class="pad">
+            <svg viewBox="0 0 200 120">
+              <path d="M 20 100 A 80 80 0 0 1 180 100" pathLength="100" fill="none" stroke="#0d1a20" stroke-width="14"/>
+              <path id="gArc" d="M 20 100 A 80 80 0 0 1 180 100" pathLength="100" fill="none" stroke="var(--fc)" stroke-width="14"
+                    stroke-dasharray="0 100" style="transition: stroke-dasharray .9s ease-out"/>
+              <text id="gNum" x="100" y="92" text-anchor="middle" fill="#d6e4ea" font-size="28" font-weight="700" font-family="Consolas">0%</text>
+            </svg>
+            <div class="lvl" id="riskLevel">-</div>
+            <div class="facts">
+              <div><b id="nextStage" style="font-size:13px">-</b><span id="nextEta" class="mono" style="color:var(--mute)">-</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Probability Forecast <span>5-step lookahead</span></h3>
+          <div class="pad"><svg id="fcSvg" viewBox="0 0 640 240"></svg></div>
+        </div>
+      </div>
+
+      <!-- Kill Chain + Alerts -->
+      <div class="two" style="gap: 16px;">
+        <div class="panel">
+          <h3>MITRE ATT&CK Chain <span id="chainSub">click a stage</span></h3>
+          <div class="pad">
+            <div class="kill-chain" id="killChain"></div>
+            <div id="stageDetails" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #1b323c; font-size: 12px; color: #7f9aa6;"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>⚠️ Alerts <span>real-time threats</span></h3>
+          <div class="pad alerts" id="alerts"></div>
+        </div>
+      </div>
+
+      <!-- Progression timeline -->
+      <div class="panel">
+        <h3>Attack Progression Timeline</h3>
+        <div class="pad" style="padding-top:24px"><div class="track" id="track"></div></div>
+      </div>
+
+      <!-- Features + Table -->
+      <div class="two">
+        <div class="panel">
+          <h3>Contributing Features</h3>
+          <div class="pad" id="feats"></div>
+        </div>
+        <div class="panel">
+          <h3>Forecast Windows</h3>
+          <table>
+            <thead><tr><th>+Time</th><th>Stage</th><th>Probability</th><th>Risk</th></tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const V = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const THRESH = 50;
+  const runs = [];
+
+  const MITRE_CHAIN = ['Reconnaissance', 'Initial Access', 'Execution', 'Persistence', 'Privilege Escalation'];
+
+  setInterval(tick, 1000); tick();
+  function tick() { $('clock').textContent = new Date().toLocaleTimeString('en-GB'); }
+
+  function sev(level) {
+    if (level === 'CRITICAL') return V('--red');
+    if (level === 'HIGH') return V('--warn');
+    if (level === 'MEDIUM') return V('--fc');
+    return V('--green');
+  }
+  function pill(text, color) {
+    $('pillText').textContent = text;
+    document.querySelector('#pill i').style.background = color || V('--mute');
+  }
+
+  async function runDemo(scenario, source) {
+    $('empty').classList.add('hidden'); $('results').classList.add('hidden'); $('loading').classList.remove('hidden');
+    pill('Analyzing', V('--obs'));
+    try {
+      const res = await fetch('/api/predict', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ use_demo: true, is_attack: scenario !== 'normal', attack_type: scenario })
+      });
+      if (!res.ok) throw new Error('server error');
+      const data = await res.json();
+      render(data);
+      addRun(source, data);
+    } catch (err) {
+      console.error(err);
+      $('empty').classList.remove('hidden');
+      $('empty').innerHTML = '<strong>⚠️ Analysis failed</strong><br>Check that python app.py is running.';
+      pill('Error', V('--red'));
+    } finally {
+      $('loading').classList.add('hidden');
+    }
+  }
+
+  function addRun(source, data) {
+    const t = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const p = data.summary.peak_probability;
+    const level = data.summary.risk_level;
+    
+    runs.unshift({ 
+      t, source, 
+      level, p, 
+      data // Store full analysis data
+    });
+    
+    updateLogDisplay();
+  }
+
+  function updateLogDisplay() {
+    if (runs.length === 0) {
+      $('logEmpty').classList.remove('hidden');
+      $('log').innerHTML = '';
+      return;
+    }
+    
+    $('logEmpty').classList.add('hidden');
+    $('log').innerHTML = runs.slice(0, 12).map((r, idx) =>
+      `<li><div class="content" onclick="loadOldAnalysis(${idx})"><span class="src" style="font-weight: 600; color: var(--ink);">${r.source}</span><span class="t mono" style="font-size: 10px;">${r.t}</span></div><span class="del" onclick="deleteLog(${idx})">✕</span></li>`).join('');
+  }
+
+  function loadOldAnalysis(idx) {
+    const run = runs[idx];
+    render(run.data);
+  }
+
+  function deleteLog(idx) {
+    event.stopPropagation();
+    runs.splice(idx, 1);
+    updateLogDisplay();
+  }
+
+  const stageInfo = {
+    'Reconnaissance': {
+      techniques: ['T1592: Gather Victim Info', 'T1589: Network Traffic Analysis', 'T1598: Phishing for Info'],
+      indicators: 'Port scanning, DNS queries, network probing'
+    },
+    'Initial Access': {
+      techniques: ['T1190: Exploit Public Apps', 'T1200: Hardware Additions', 'T1566: Phishing'],
+      indicators: 'Suspicious inbound connections, exploit attempts, credential submission'
+    },
+    'Execution': {
+      techniques: ['T1059: Command & Scripting', 'T1053: Scheduled Tasks', 'T1204: User Execution'],
+      indicators: 'Process execution, script activity, unusual command lines'
+    },
+    'Persistence': {
+      techniques: ['T1098: Account Manipulation', 'T1547: Boot or Logon Hooks', 'T1547: Scheduled Tasks'],
+      indicators: 'New user accounts, registry modifications, scheduled tasks'
+    },
+    'Privilege Escalation': {
+      techniques: ['T1548: Abuse Elevation Control', 'T1134: Access Token Manipulation', 'T1547: Boot Hooks'],
+      indicators: 'Privilege escalation attempts, UAC bypass, kernel exploits'
+    }
+  };
+
+  function showStageDetails(stage) {
+    const info = stageInfo[stage];
+    if (!info) return;
+    const html = `
+      <div>
+        <strong style="color: var(--ink);">${stage}</strong><br>
+        <strong>Techniques:</strong> ${info.techniques.join(', ')}<br>
+        <strong>Indicators:</strong> ${info.indicators}
+      </div>
+    `;
+    $('stageDetails').innerHTML = html;
+    $('chainSub').textContent = stage;
+  }
+
+  function render(data) {
+    const s = data.summary, tl = data.timeline, col = sev(s.risk_level);
+    const peak = s.peak_probability * 100;
+
+    $('results').classList.remove('hidden');
+    $('riskLevel').textContent = s.risk_level; $('riskLevel').style.color = col;
+    $('flowVal').textContent = Number(data.num_flows_analyzed).toLocaleString();
+    $('peakVal').textContent = s.risk_level;
+    $('peakVal').style.color = col;
+    $('leadVal').textContent = tl[0].time_offset_min + ' min';
+    $('nextStage').textContent = tl[0].mitre_stage;
+    $('nextEta').textContent = 'ETA: +' + tl[0].time_offset_min + 'm';
+    pill(s.risk_level, col);
+
+    // gauge
+    const arc = $('gArc'); arc.setAttribute('stroke', col); arc.style.strokeDasharray = '0 100';
+    $('gNum').textContent = peak.toFixed(0) + '%';
+    requestAnimationFrame(() => requestAnimationFrame(() => arc.style.strokeDasharray = peak + ' 100'));
+
+    forecast(tl);
+    killChain(tl);
+    alerts(tl, s);
+    track(tl);
+
+    $('feats').innerHTML = data.top_features.slice(0, 5).map(f => `
+      <div class="feat"><span>${f.name}</span><span class="val mono">${(f.contribution * 100).toFixed(0)}%</span>
+      <div class="bar"><i style="width:${Math.min(100, f.contribution * 100)}%"></i></div></div>`).join('');
+
+    $('rows').innerHTML = tl.map(t => {
+      const p = t.attack_probability * 100;
+      return `<tr><td class="mono">+${t.time_offset_min}m</td><td>${t.mitre_stage}</td>
+      <td class="mono ${p >= THRESH ? 'crit' : p >= 25 ? 'warn' : ''}">${p.toFixed(1)}%</td>
+      <td>${t.confidence}</td></tr>`;
+    }).join('');
+  }
+
+  function killChain(tl) {
+    const activeIdx = Math.max(0, Math.min(MITRE_CHAIN.length - 1, Math.floor(tl[0].attack_probability * 5)));
+    $('killChain').innerHTML = MITRE_CHAIN.map((stage, i) =>
+      `<div class="kc-stage ${i <= activeIdx ? 'active' : ''}" data-stage="${stage}">${stage}</div>`).join('');
+    
+    // Add click handlers
+    document.querySelectorAll('.kc-stage').forEach(el => {
+      el.addEventListener('click', () => {
+        document.querySelectorAll('.kc-stage').forEach(e => e.classList.remove('selected'));
+        el.classList.add('selected');
+        showStageDetails(el.dataset.stage);
+      });
+    });
+    
+    // Show active stage details by default
+    showStageDetails(MITRE_CHAIN[activeIdx]);
+  }
+
+  function alerts(tl, s) {
+    const alertList = [];
+    if (s.peak_probability > 0.7) {
+      alertList.push({ level: 'critical', title: 'Critical: High Attack Probability', desc: `Peak ${(s.peak_probability*100).toFixed(0)}% in next ${tl[0].time_offset_min}m` });
+    }
+    if (s.peak_probability > 0.4) {
+      alertList.push({ level: 'high', title: 'High Risk: ' + tl[0].mitre_stage, desc: `Predicted stage escalation. Confidence ${tl[0].confidence}` });
+    }
+    if (tl.length > 1 && tl[1].attack_probability > 0.3) {
+      alertList.push({ level: 'medium', title: 'Medium: Multi-stage Attack', desc: `Detected attack chain progression pattern` });
+    }
+    if (alertList.length === 0) {
+      alertList.push({ level: 'medium', title: 'Monitor', desc: 'Baseline traffic pattern detected' });
+    }
+
+    $('alerts').innerHTML = alertList.map(a =>
+      `<div class="alert ${a.level}"><div class="title">${a.title}</div><div class="desc">${a.desc}</div><div class="time">just now</div></div>`).join('');
+  }
+
+  function forecast(tl) {
+    const W = 640, H = 240, L = 36, R = 12, T = 14, B = 28;
+    const maxT = Math.max(...tl.map(t => t.time_offset_min), 1);
+    const x = m => L + (m / maxT) * (W - L - R);
+    const y = p => T + (1 - p / 100) * (H - T - B);
+    const pts = tl.map(t => [x(t.time_offset_min), y(t.attack_probability * 100), t]);
+    const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    const area = line + ` L ${pts[pts.length - 1][0]} ${y(0)} L ${pts[0][0]} ${y(0)} Z`;
+    const ty = y(THRESH);
+
+    let g = '';
+    [0, 25, 50, 75, 100].forEach(v => {
+      g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="#1b323c"/>
+            <text x="${L - 8}" y="${y(v) + 3}" text-anchor="end" fill="#7f9aa6" font-size="10" font-family="Consolas">${v}</text>`;
+    });
+    pts.forEach(p => {
+      g += `<text x="${p[0]}" y="${H - 8}" text-anchor="middle" fill="#7f9aa6" font-size="10" font-family="Consolas">+${p[2].time_offset_min}m</text>`;
+    });
+
+    $('fcSvg').innerHTML = `
+      <defs><clipPath id="a"><rect x="0" y="0" width="${W}" height="${ty}"/></clipPath>
+      <clipPath id="b"><rect x="0" y="${ty}" width="${W}" height="${H}"/></clipPath></defs>
+      ${g}
+      <path d="${area}" fill="#f0a24b" opacity="0.08"/>
+      <line x1="${L}" x2="${W - R}" y1="${ty}" y2="${ty}" stroke="#ff6b6b" stroke-dasharray="4 4" opacity="0.6"/>
+      <path class="draw" pathLength="1" d="${line}" fill="none" stroke="#f0a24b" stroke-width="2.5" clip-path="url(#b)"/>
+      <path class="draw" pathLength="1" d="${line}" fill="none" stroke="#ff6b6b" stroke-width="2.5" clip-path="url(#a)"/>
+      ${pts.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="${p[2].attack_probability * 100 >= THRESH ? '#ff6b6b' : '#f0a24b'}" stroke="#13242c" stroke-width="2"/>`).join('')}`;
+  }
+
+  function track(tl) {
+    const maxT = Math.max(...tl.map(t => t.time_offset_min), 1);
+    $('track').innerHTML = '<div class="rail"></div>' + tl.map((t, i) => {
+      const p = t.attack_probability * 100, size = 16 + p * 0.15;
+      const c = p >= THRESH ? V('--red') : p >= 25 ? V('--fc') : V('--obs');
+      return `<div class="node ${i % 2 ? 'low' : ''}" style="left:${(t.time_offset_min / maxT) * 100}%;width:${size}px;height:${size}px;background:${c}">
+        <span class="eta mono">+${t.time_offset_min}m</span>
+        <span class="lab">${t.mitre_stage}<small>${p.toFixed(0)}%</small></span></div>`;
+    }).join('');
+  }
+
+  // file handling
+  function handleFile(file) {
+    if (!file) return;
+    runDemo(/normal/i.test(file.name) ? 'normal' : /lateral/i.test(file.name) ? 'lateral' : 'ddos', file.name);
+  }
+  $('fileInput').addEventListener('change', e => handleFile(e.target.files[0]));
+  const drop = $('drop');
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
+</script>
+</body>
+</html>
